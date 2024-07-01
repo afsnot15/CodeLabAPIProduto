@@ -11,22 +11,21 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
       transform: true,
+      whitelist: true,
     }),
   );
-
   app.useGlobalInterceptors(new ResponseTransformInterceptor());
   app.useGlobalFilters(new ResponseExceptionsFilter());
   app.enableCors();
 
   setupOpenAPI(app);
-  await app.listen(3000);
+  await app.listen(3003);
 }
 bootstrap();
 
 function setupOpenAPI(app: INestApplication): void {
-  const config = new DocumentBuilder().setTitle('CodeLabAPITemplate').build();
+  const config = new DocumentBuilder().setTitle('CodeLabAPIProduto').build();
   const document = SwaggerModule.createDocument(app, config);
 
   SwaggerModule.setup('docs', app, document, { useGlobalPrefix: true });
