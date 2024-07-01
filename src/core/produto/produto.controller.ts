@@ -9,11 +9,12 @@ import {
   Query,
 } from '@nestjs/common';
 import { HttpResponse } from '../../shared/classes/http-response';
-import { IFindAllFilter } from '../../shared/interfaces/find-all-filter.interface';
+import { EMensagem } from '../../shared/enums/mensagem.enum';
 import { IFindAllOrder } from '../../shared/interfaces/find-all-order.interface';
 import { IResponse } from '../../shared/interfaces/response.interface';
 import { ParseFindAllFilter } from '../../shared/pipes/parse-find-all-filter.pipe';
 import { ParseFindAllOrder } from '../../shared/pipes/parse-find-all-order.pipe';
+import { IFindAllFilter } from './../../shared/interfaces/find-all-filter.interface';
 import { CreateProdutoDto } from './dto/create-produto.dto';
 import { UpdateProdutoDto } from './dto/update-produto.dto';
 import { Produto } from './entities/produto.entity';
@@ -67,5 +68,19 @@ export class ProdutoController {
     const data = await this.produtoService.unactivate(id);
 
     return new HttpResponse<boolean>(data).onUnactivated();
+  }
+
+  @Get('export/pdf/:idUsuario/:order')
+  async exportPdf(
+    @Param('idUsuario') idUsuario: number,
+    @Param('order', ParseFindAllOrder) order: IFindAllOrder,
+    @Query('filter', ParseFindAllFilter)
+    filter: IFindAllFilter | IFindAllFilter[],
+  ): Promise<IResponse<boolean>> {
+    const data = await this.produtoService.exportPdf(idUsuario, order, filter);
+
+    return new HttpResponse<boolean>(data).onSuccess(
+      EMensagem.IniciadoGeracaoPDF,
+    );
   }
 }
