@@ -5,15 +5,18 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientGrpc, ClientProxy } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { readFileSync } from 'fs';
+import { lastValueFrom } from 'rxjs';
 import { Repository } from 'typeorm';
 import { EnviarEmailDto } from '../../shared/dtos/enviar-email.dto';
 import { EMensagem } from '../../shared/enums/mensagem.enum';
 import { handleFilter } from '../../shared/helpers/sql.helper';
 import { IFindAllFilter } from '../../shared/interfaces/find-all-filter.interface';
 import { IFindAllOrder } from '../../shared/interfaces/find-all-order.interface';
+import { IGrpcUsuarioService } from '../../shared/interfaces/grpc-usuario.service';
+import { IUsuario } from '../../shared/interfaces/usuario.interface';
 import { ExportPdfService } from '../../shared/services/export-pdf.service';
 import { monetaryFormat } from './../../shared/helpers/formatter.helper';
 import { CreateProdutoDto } from './dto/create-produto.dto';
@@ -32,6 +35,15 @@ export class ProdutoService {
 
   @Inject(ExportPdfService)
   private exportPdfService: ExportPdfService;
+
+  private grpcUsuarioService: IGrpcUsuarioService;
+
+  constructor(
+    @Inject('GRPC_USUARIO') private readonly clientGrpcUsuario: ClientGrpc,
+  ) {
+    this.grpcUsuarioService =
+      this.clientGrpcUsuario.getService<IGrpcUsuarioService>('UsuarioService');
+  }
 
   async create(createProdutoDto: CreateProdutoDto): Promise<Produto> {
     const created = this.repository.create(new Produto(createProdutoDto));
@@ -145,16 +157,21 @@ export class ProdutoService {
       const filedata = readFileSync(filePath);
       const base64 = filedata.toString('base64');
 
-      //TODO: obter dados do usuario
-      const emailUsuario = 'afsnot15@gmail.com';
-      const nomeUsuario = 'Afonso Gomes';
+      const usuario = await this.getUsuarioFromGrpc(idUsuario);
+
+      if (usuario.id <= 0) {
+        throw new HttpException(
+          EMensagem.UsuarioNaoIdentificado,
+          HttpStatus.NOT_FOUND,
+        );
+      }
 
       const data: EnviarEmailDto = {
         subject: 'Exportação de Relatório',
-        to: emailUsuario,
+        to: usuario.email,
         template: 'exportacao-relatorio',
         context: {
-          name: nomeUsuario,
+          name: usuario.nome,
         },
         attachments: [{ filename, base64 }],
       };
@@ -167,6 +184,20 @@ export class ProdutoService {
 
       throw new HttpException(
         EMensagem.ErroExportarPDF,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  private async getUsuarioFromGrpc(id: number): Promise<IUsuario> {
+    try {
+      return (await lastValueFrom(
+        this.grpcUsuarioService.FindOne({ id }),
+      )) as unknown as IUsuario;
+    } catch (error) {
+      this.logger.error(`Erro ao gerar relatorio PDF: ${error.message}`);
+      throw new HttpException(
+        EMensagem.ErroComunicacaoGrpcUsuario,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
